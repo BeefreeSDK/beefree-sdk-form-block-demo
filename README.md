@@ -194,7 +194,7 @@ contentDialog: {
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-repo/form-block.git
+   git clone https://github.com/BeefreeSDK/beefree-sdk-form-block-demo.git
    cd form-block
    ```
 
