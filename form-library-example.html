@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Beefree SDK - Integration Example</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    #bee-plugin-container {
+      position: absolute;
+      top: 5px;
+      bottom: 30px;
+      left: 5px;
+      right: 5px;
+    }
+
+    #integrator-bottom-bar {
+      position: absolute;
+      height: 25px;
+      bottom: 0;
+      left: 5px;
+      right: 0;
+    }
+
+    /* Custom Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      width: 300px;
+      text-align: center;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #d32f2f;
+    }
+
+    .modal button {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+
+    .modal button:hover {
+      background: #b71c1c;
+    }
+
+    /* Form Styles */
+    .form-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-container h2 {
+      font-size: 24px;
+      color: #d32f2f;
+      margin-bottom: 10px;
+    }
+
+    .form-container p {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .form-container label {
+      display: block;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .form-container input,
+    .form-container select,
+    .form-container textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .form-container input[type="submit"] {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .form-container input[type="submit"]:hover {
+      background: #b71c1c;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+  <div id="bee-plugin-container"></div>
+  <div id="integrator-bottom-bar">
+    Select template to load:
+    <input id="choose-template" type="file" />
+    Send test e-mail to:
+    <input id="integrator-test-emails" type="text" />
+  </div>
+
+  <!-- Custom Modal for Form Selection -->
+  <div id="form-modal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+      <h2>Select Form Type</h2>
+      <button onclick="selectForm('autoLoan')">Auto Loan Pre-Approval</button>
+      <button onclick="selectForm('mortgage')">Mortgage Pre-Approval</button>
+      <button onclick="selectForm('creditCard')">Credit Card Application</button>
+    </div>
+  </div>
+
+</body>
+
+<script src="./Blob.js"></script>
+<script src="./FileSaver.js"></script>
+<script src="https://app-rsrc.getbee.io/plugin/BeePlugin.js"></script>
+
+<script type="text/javascript">
+  // Add the request function
+  var request = function (method, url, data, type, callback) {
+    var req = new XMLHttpRequest();
+    req.onreadystatechange = function () {
+      if (req.readyState === 4 && req.status === 200) {
+        var response = JSON.parse(req.responseText);
+        callback(response);
+      } else if (req.readyState === 4 && req.status !== 200) {
+        console.error('Access denied, invalid credentials. Please check you entered a valid client_id and client_secret.');
+      }
+    };
+
+    req.open(method, url, true);
+    if (data && type) {
+      if (type === 'multipart/form-data') {
+        var formData = new FormData();
+        for (var key in data) {
+          formData.append(key, data[key]);
+        }
+        data = formData;
+      }
+      else {
+        req.setRequestHeader('Content-type', type);
+      }
+    }
+
+    req.send(data);
+  };
+
+  // Add the userInput function
+  function userInput(message, sample) {
+    return function handler(resolve, reject) {
+      var data = prompt(message, JSON.stringify(sample));
+      return (data == null || data == '')
+        ? reject()
+        : resolve(JSON.parse(data));
+    };
+  };
+
+  var save = function (filename, content) {
+    saveAs(
+      new Blob([content], { type: 'text/plain;charset=utf-8' }),
+      filename
+    );
+  };
+
+  var specialLinks = [{
+    type: 'unsubscribe',
+    label: 'SpecialLink.Unsubscribe',
+    link: 'http://[unsubscribe]/'
+  }, {
+    type: 'subscribe',
+    label: 'SpecialLink.Subscribe',
+    link: 'http://[subscribe]/'
+  }];
+
+  var mergeTags = [{
+    name: 'tag 1',
+    value: '[tag1]'
+  }, {
+    name: 'tag 2',
+    value: '[tag2]'
+  }];
+
+  var mergeContents = [{
+    name: 'content 1',
+    value: '[content1]'
+  }, {
+    name: 'content 2',
+    value: '[content1]'
+  }];
+
+  var autoLoanForm = {
+    structure: {
+      title: 'Auto Loan Pre-Approval',
+      description: 'Check if you\'re pre-approved for an auto loan with Modern Bank.',
+      fields: {
+        full_name: {
+          type: 'text',
+          label: 'Full Name *',
+          canBeRemovedFromLayout: true,
+          removeFromLayout: false,
+          canBeModified: true,
+          attributes: {
+            required: true,
+            placeholder: 'Enter your full name',
+          },
+        },
+        credit_score_range: {
+          type: 'select',
+          label: 'Credit Score Range *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+          options: [
+            { type: 'option', label: '300-579', value: '300-579' },
+            { type: 'option', label: '580-669', value: '580-669' },
+            { type: 'option', label: '670-739', value: '670-739' },
+            { type: 'option', label: '740-799', value: '740-799' },
+            { type: 'option', label: '800-850', value: '800-850' },
+          ],
+        },
+        car_make_model: {
+          type: 'text',
+          label: 'Car Make and Model *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            placeholder: 'Enter car make and model',
+          },
+        },
+        loan_amount: {
+          type: 'number',
+          label: 'Loan Amount Requested *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            min: 0,
+            placeholder: 'Enter loan amount',
+          },
+        },
+        car_type: {
+          type: 'radio',
+          label: 'New or Used Car *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+          options: [
+            { type: 'option', label: 'New', value: 'new' },
+            { type: 'option', label: 'Used', value: 'used' },
+          ],
+        },
+        submit_button: {
+          type: 'submit',
+          label: '',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            value: 'CHECK PRE-APPROVAL',
+            name: 'submit_button',
+          },
+        },
+        number: {
+          type: 'number',
+          label: 'number',
+          removeFromLayout: true,
+        },
+        longtext: {
+          type: 'textarea',
+          label: 'longtext',
+          removeFromLayout: true,
+        },
+        datalist: {
+          type: 'datalist',
+          label: 'datalist',
+          options: ['pippo', 'pluto'],
+          attributes: { id: 'datalist' },
+          removeFromLayout: true,
+        },
+        color: {
+          type: 'color',
+          label: 'color',
+          removeFromLayout: true,
+        },
+        'datetime-local': {
+          type: 'datetime-local',
+          label: 'datetime-local',
+          removeFromLayout: true,
+        },
+        file: {
+          type: 'file',
+          label: 'file',
+          removeFromLayout: true,
+        },
+        hidden: {
+          type: 'hidden',
+          label: 'hidden',
+          removeFromLayout: true,
+        },
+        image: {
+          type: 'image',
+          label: 'image',
+          attributes: {
+            src: 'https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png',
+          },
+          removeFromLayout: true,
+        },
+        label: {
+          type: 'label',
+          label: 'label',
+          removeFromLayout: true,
+        },
+        month: {
+          type: 'month',
+          label: 'month',
+          removeFromLayout: true,
+        },
+        password: {
+          type: 'password',
+          label: 'password',
+          removeFromLayout: true,
+        },
+        range: {
+          type: 'range',
+          label: 'range',
+          removeFromLayout: true,
+        },
+        search: {
+          type: 'search',
+          label: 'search',
+          removeFromLayout: true,
+        },
+        time: {
+          type: 'time',
+          label: 'time',
+          removeFromLayout: true,
+        },
+        url: {
+          type: 'url',
+          label: 'url',
+          removeFromLayout: true,
+        },
+        week: {
+          type: 'week',
+          label: 'week',
+          removeFromLayout: true,
+        },
+      },
+      layout: [
+        ['full_name'],
+        ['credit_score_range'],
+        ['car_make_model'],
+        ['loan_amount'],
+        ['car_type'],
+        ['submit_button'],
+        ['number'],
+        ['longtext'],
+        ['datalist'],
+        ['color'],
+        ['datetime-local'],
+        ['file'],
+        ['hidden'],
+        ['image'],
+        ['label'],
+        ['month'],
+        ['password'],
+        ['range'],
+        ['search'],
+        ['time'],
+        ['url'],
+        ['week'],
+      ],
+      attributes: {
+        'accept-charset': 'UTF-8',
+        action: 'http://example.com/read-form-script',
+        autocomplete: 'on',
+        enctype: 'multipart/form-data',
+        method: 'post',
+        novalidate: false,
+        target: '_self',
+      },
+    },
+  };
+
+  var mortgageForm = {
+    structure: {
+      title: 'Mortgage Pre-Approval',
+      description: 'Check if you\'re pre-approved for a mortgage with Modern Bank.',
+      fields: {
+        full_name: {
+          type: 'text',
+          label: 'Full Name *',
+          canBeRemovedFromLayout: true,
+          removeFromLayout: false,
+          canBeModified: true,
+          attributes: {
+            required: true,
+            placeholder: 'Enter your full name',
+          },
+        },
+        annual_income: {
+          type: 'number',
+          label: 'Annual Income *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            min: 0,
+            placeholder: 'Enter annual income',
+          },
+        },
+        loan_amount: {
+          type: 'number',
+          label: 'Loan Amount Requested *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            min: 0,
+            placeholder: 'Enter loan amount',
+          },
+        },
+        loan_term: {
+          type: 'select',
+          label: 'Loan Term *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+          options: [
+            { type: 'option', label: '15 Years', value: '15' },
+            { type: 'option', label: '30 Years', value: '30' },
+          ],
+        },
+        property_type: {
+          type: 'text',
+          label: 'Property Type *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            placeholder: 'Enter property type',
+          },
+        },
+        submit_button: {
+          type: 'submit',
+          label: '',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            value: 'CHECK MORTGAGE PRE-APPROVAL',
+            name: 'submit_button',
+          },
+        },
+        number: {
+          type: 'number',
+          label: 'number',
+          removeFromLayout: true,
+        },
+        longtext: {
+          type: 'textarea',
+          label: 'longtext',
+          removeFromLayout: true,
+        },
+        datalist: {
+          type: 'datalist',
+          label: 'datalist',
+          options: ['pippo', 'pluto'],
+          attributes: { id: 'datalist' },
+          removeFromLayout: true,
+        },
+        color: {
+          type: 'color',
+          label: 'color',
+          removeFromLayout: true,
+        },
+        'datetime-local': {
+          type: 'datetime-local',
+          label: 'datetime-local',
+          removeFromLayout: true,
+        },
+        file: {
+          type: 'file',
+          label: 'file',
+          removeFromLayout: true,
+        },
+        hidden: {
+          type: 'hidden',
+          label: 'hidden',
+          removeFromLayout: true,
+        },
+        image: {
+          type: 'image',
+          label: 'image',
+          attributes: {
+            src: 'https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png',
+          },
+          removeFromLayout: true,
+        },
+        label: {
+          type: 'label',
+          label: 'label',
+          removeFromLayout: true,
+        },
+        month: {
+          type: 'month',
+          label: 'month',
+          removeFromLayout: true,
+        },
+        password: {
+          type: 'password',
+          label: 'password',
+          removeFromLayout: true,
+        },
+        range: {
+          type: 'range',
+          label: 'range',
+          removeFromLayout: true,
+        },
+        search: {
+          type: 'search',
+          label: 'search',
+          removeFromLayout: true,
+        },
+        time: {
+          type: 'time',
+          label: 'time',
+          removeFromLayout: true,
+        },
+        url: {
+          type: 'url',
+          label: 'url',
+          removeFromLayout: true,
+        },
+        week: {
+          type: 'week',
+          label: 'week',
+          removeFromLayout: true,
+        },
+      },
+      layout: [
+        ['full_name'],
+        ['annual_income'],
+        ['loan_amount'],
+        ['loan_term'],
+        ['property_type'],
+        ['submit_button'],
+        ['number'],
+        ['longtext'],
+        ['datalist'],
+        ['color'],
+        ['datetime-local'],
+        ['file'],
+        ['hidden'],
+        ['image'],
+        ['label'],
+        ['month'],
+        ['password'],
+        ['range'],
+        ['search'],
+        ['time'],
+        ['url'],
+        ['week'],
+      ],
+      attributes: {
+        'accept-charset': 'UTF-8',
+        action: 'http://example.com/read-form-script',
+        autocomplete: 'on',
+        enctype: 'multipart/form-data',
+        method: 'post',
+        novalidate: false,
+        target: '_self',
+      },
+    },
+  };
+
+  var creditCardForm = {
+    structure: {
+      title: 'Credit Card Application',
+      description: 'Apply for a credit card with Modern Bank.',
+      fields: {
+        full_name: {
+          type: 'text',
+          label: 'Full Name *',
+          canBeRemovedFromLayout: true,
+          removeFromLayout: false,
+          canBeModified: true,
+          attributes: {
+            required: true,
+            placeholder: 'Enter your full name',
+          },
+        },
+        credit_score_range: {
+          type: 'select',
+          label: 'Credit Score Range *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+          options: [
+            { type: 'option', label: '300-579', value: '300-579' },
+            { type: 'option', label: '580-669', value: '580-669' },
+            { type: 'option', label: '670-739', value: '670-739' },
+            { type: 'option', label: '740-799', value: '740-799' },
+            { type: 'option', label: '800-850', value: '800-850' },
+          ],
+        },
+        credit_card_product: {
+          type: 'select',
+          label: 'Credit Card Product *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+          options: [
+            { type: 'option', label: 'Blue Card', value: 'blue' },
+            { type: 'option', label: 'Green Card', value: 'green' },
+            { type: 'option', label: 'Yellow Card', value: 'yellow' },
+          ],
+        },
+        credit_limit_requested: {
+          type: 'number',
+          label: 'Credit Limit Requested *',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+            min: 0,
+            placeholder: 'Enter credit limit requested',
+          },
+        },
+        submit_button: {
+          type: 'submit',
+          label: '',
+          canBeRemovedFromLayout: false,
+          removeFromLayout: false,
+          attributes: {
+            value: 'APPLY FOR CREDIT CARD',
+            name: 'submit_button',
+          },
+        },
+        number: {
+          type: 'number',
+          label: 'number',
+          removeFromLayout: true,
+        },
+        longtext: {
+          type: 'textarea',
+          label: 'longtext',
+          removeFromLayout: true,
+        },
+        datalist: {
+          type: 'datalist',
+          label: 'datalist',
+          options: ['pippo', 'pluto'],
+          attributes: { id: 'datalist' },
+          removeFromLayout: true,
+        },
+        color: {
+          type: 'color',
+          label: 'color',
+          removeFromLayout: true,
+        },
+        'datetime-local': {
+          type: 'datetime-local',
+          label: 'datetime-local',
+          removeFromLayout: true,
+        },
+        file: {
+          type: 'file',
+          label: 'file',
+          removeFromLayout: true,
+        },
+        hidden: {
+          type: 'hidden',
+          label: 'hidden',
+          removeFromLayout: true,
+        },
+        image: {
+          type: 'image',
+          label: 'image',
+          attributes: {
+            src: 'https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png',
+          },
+          removeFromLayout: true,
+        },
+        label: {
+          type: 'label',
+          label: 'label',
+          removeFromLayout: true,
+        },
+        month: {
+          type: 'month',
+          label: 'month',
+          removeFromLayout: true,
+        },
+        password: {
+          type: 'password',
+          label: 'password',
+          removeFromLayout: true,
+        },
+        range: {
+          type: 'range',
+          label: 'range',
+          removeFromLayout: true,
+        },
+        search: {
+          type: 'search',
+          label: 'search',
+          removeFromLayout: true,
+        },
+        time: {
+          type: 'time',
+          label: 'time',
+          removeFromLayout: true,
+        },
+        url: {
+          type: 'url',
+          label: 'url',
+          removeFromLayout: true,
+        },
+        week: {
+          type: 'week',
+          label: 'week',
+          removeFromLayout: true,
+        },
+      },
+      layout: [
+        ['full_name'],
+        ['credit_score_range'],
+        ['credit_card_product'],
+        ['credit_limit_requested'],
+        ['submit_button'],
+        ['number'],
+        ['longtext'],
+        ['datalist'],
+        ['color'],
+        ['datetime-local'],
+        ['file'],
+        ['hidden'],
+        ['image'],
+        ['label'],
+        ['month'],
+        ['password'],
+        ['range'],
+        ['search'],
+        ['time'],
+        ['url'],
+        ['week'],
+      ],
+      attributes: {
+        'accept-charset': 'UTF-8',
+        action: 'http://example.com/read-form-script',
+        autocomplete: 'on',
+        enctype: 'multipart/form-data',
+        method: 'post',
+        novalidate: false,
+        target: '_self',
+      },
+    },
+  };
+
+  var beeConfig = {
+    container: 'bee-plugin-container',
+    language: 'en-US',
+    trackChanges: true,
+    specialLinks: specialLinks,
+    mergeTags: mergeTags,
+    mergeContents: mergeContents,
+    contentDialog: {
+      specialLinks: {
+        label: 'Add a custom Special Link',
+        handler: userInput('Enter the deep link:', {
+          type: 'custom',
+          label: 'external special link',
+          link: 'http://www.example.com'
+        })
+      },
+      mergeTags: {
+        label: 'Add custom tag 2',
+        handler: userInput('Enter the merge tag:', {
+          name: 'name',
+          value: '[name]'
+        })
+      },
+      mergeContents: {
+        label: 'Choose a custom merge content',
+        handler: userInput('Enter the merge content:', {
+          name: 'my custom content',
+          value: '{my-custom-content}'
+        })
+      },
+      rowDisplayConditions: {
+        label: 'Open builder',
+        handler: userInput('Enter the row display condition:', {
+          type: 'People',
+          label: 'Person is a developer',
+          description: 'Check if a person is a developer',
+          before: "{if job == 'developer'}",
+          after: '{endif}'
+        })
+      },
+      manageForm: {
+        label: 'Edit Form',
+        handler: async (resolve, reject, args) => {
+          openModal();
+          await new Promise((res) => {
+            window.selectForm = (formType) => {
+              let formStructure;
+              switch (formType) {
+                case 'autoLoan':
+                  formStructure = autoLoanForm;
+                  break;
+                case 'mortgage':
+                  formStructure = mortgageForm;
+                  break;
+                case 'creditCard':
+                  formStructure = creditCardForm;
+                  break;
+                default:
+                  reject();
+                  return;
+              }
+              resolve(formStructure);
+              closeModal();
+            };
+          });
+        }
+      }
+    },
+    defaultForm: autoLoanForm,
+    onChange: function (jsonFile, response) {
+      console.log('json', jsonFile);
+      console.log('response', response);
+    },
+    onSave: function (jsonFile, htmlFile) {
+      save('newsletter.html', htmlFile);
+    },
+    onSaveAsTemplate: function (jsonFile) {
+      save('newsletter-template.json', jsonFile);
+    },
+    onAutoSave: function (jsonFile) {
+      console.log(new Date().toISOString() + ' autosaving...');
+      window.localStorage.setItem('newsletter.autosave', jsonFile);
+    },
+    onSend: function (htmlFile) {
+      //write your send test function here
+    },
+    onError: function (errorMessage) {
+      console.log('onError ', errorMessage);
+    }
+  };
+
+  var bee = null;
+
+  var loadTemplate = function (e) {
+    var templateFile = e.target.files[0];
+    var reader = new FileReader();
+
+    reader.onload = function () {
+      var templateString = reader.result;
+      var template = JSON.parse(templateString);
+      bee.load(template);
+    };
+
+    reader.readAsText(templateFile);
+  };
+
+  document.getElementById('choose-template').addEventListener('change', loadTemplate, false);
+
+  // Remove old request-based authentication and add loginV2 proxy auth
+
+  // Get Authentication Token using proxy server (loginV2)
+  async function getBeeToken(callback) {
+    try {
+      const response = await fetch('http://localhost:3001/proxy/bee-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: 'test1-clientside' })
+      });
+      const token = await response.json();
+      callback(token);
+    } catch (err) {
+      console.error('Auth failed:', err);
+      // Optionally show a status message or handle error
+    }
+  }
+
+  // Initialize Beefree SDK
+  function initBee(token) {
+    BeePlugin.create(token, beeConfig, function(beePluginInstance) {
+      bee = beePluginInstance;
+      // Load the local template.json file
+      fetch('./template.json')
+        .then((response) => response.json())
+        .then((template) => {
+          bee.start(template);
+        })
+        .catch((error) => {
+          console.error('Error loading local template:', error);
+        });
+    });
+  }
+
+  // Start the editor with loginV2 auth
+  getBeeToken(initBee);
+
+  // Modal Functions
+  function openModal() {
+    document.getElementById('form-modal').style.display = 'flex';
+  }
+
+  function closeModal() {
+    document.getElementById('form-modal').style.display = 'none';
+  }
+</script>
+
+</html>

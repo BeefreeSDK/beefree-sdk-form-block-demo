@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Beefree SDK - Integration Example</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    #bee-plugin-container {
+      position: absolute;
+      top: 5px;
+      bottom: 30px;
+      left: 5px;
+      right: 5px;
+    }
+
+    #integrator-bottom-bar {
+      position: absolute;
+      height: 25px;
+      bottom: 0;
+      left: 5px;
+      right: 0;
+    }
+    
+    #status-message {
+      padding: 10px;
+      font-weight: bold;
+    }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <div id="status-message"></div>
+  <div id="bee-plugin-container"></div>
+  <div id="integrator-bottom-bar">
+    Select template to load:
+    <input id="choose-template" type="file" />
+    Send test e-mail to:
+    <input id="integrator-test-emails" type="text" />
+  </div>
+
+  <script src="./Blob.js"></script>
+  <script src="./FileSaver.js"></script>
+  <script src="https://app-rsrc.getbee.io/plugin/BeePlugin.js"></script>
+
+<script type="text/javascript">
+  // Status message helper
+  function showStatus(message, isSuccess = true) {
+    const statusEl = document.getElementById('status-message');
+    statusEl.textContent = message;
+    statusEl.className = isSuccess ? 'success' : 'error';
+  }
+
+  var save = function (filename, content) {
+    saveAs(
+      new Blob([content], { type: 'text/plain;charset=utf-8' }),
+      filename
+    );
+  };
+
+  var specialLinks = [{
+    type: 'unsubscribe',
+    label: 'SpecialLink.Unsubscribe',
+    link: 'http://[unsubscribe]/'
+  }, {
+    type: 'subscribe',
+    label: 'SpecialLink.Subscribe',
+    link: 'http://[subscribe]/'
+  }];
+
+  var mergeTags = [{
+    name: 'tag 1',
+    value: '[tag1]'
+  }, {
+    name: 'tag 2',
+    value: '[tag2]'
+  }];
+
+  var mergeContents = [{
+    name: 'content 1',
+    value: '[content1]'
+  }, {
+    name: 'content 2',
+    value: '[content1]'
+  }];
+
+  var beeConfig = {
+    container: 'bee-plugin-container',
+    language: 'en-US',
+    trackChanges: true,
+    specialLinks: specialLinks,
+    mergeTags: mergeTags,
+    mergeContents: mergeContents,
+    defaultForm: {
+      structure: {
+        title: "Auto Loan Pre-Approval",
+        description: "Check if you're pre-approved for an auto loan with Modern Bank.",
+        fields: {
+          full_name: {
+            type: "text",
+            label: "Full Name *",
+            canBeRemovedFromLayout: true,
+            removeFromLayout: false,
+            canBeModified: true,
+            attributes: {
+              required: true,
+              placeholder: "Enter your full name",
+            },
+          },
+          credit_score_range: {
+            type: "select",
+            label: "Credit Score Range *",
+            canBeRemovedFromLayout: false,
+            removeFromLayout: false,
+            canBeModified: true,
+            attributes: {
+              required: true,
+            },
+            options: [
+              { type: "option", label: "300-579", value: "300-579" },
+              { type: "option", label: "580-669", value: "580-669" },
+              { type: "option", label: "670-739", value: "670-739" },
+              { type: "option", label: "740-799", value: "740-799" },
+              { type: "option", label: "800-850", value: "800-850" },
+            ],
+          },
+          car_make_model: {
+            type: "text",
+            label: "Car Make and Model *",
+            canBeRemovedFromLayout: false,
+            removeFromLayout: false,
+            attributes: {
+              required: true,
+              placeholder: "Enter car make and model",
+            },
+          },
+          loan_amount: {
+            type: "number",
+            label: "Loan Amount Requested *",
+            canBeRemovedFromLayout: false,
+            removeFromLayout: false,
+            attributes: {
+              required: true,
+              min: 0,
+              placeholder: "Enter loan amount",
+            },
+          },
+          car_type: {
+            type: "radio",
+            label: "New or Used Car *",
+            canBeRemovedFromLayout: false,
+            removeFromLayout: false,
+            attributes: {
+              required: true,
+            },
+            options: [
+              { type: "option", label: "New", value: "new" },
+              { type: "option", label: "Used", value: "used" },
+            ],
+          },
+          submit_button: {
+            type: "submit",
+            label: "",
+            canBeRemovedFromLayout: false,
+            removeFromLayout: false,
+            attributes: {
+              value: "CHECK PRE-APPROVAL",
+              name: "submit_button",
+            },
+          },
+          number: {
+            type: "number",
+            label: "number",
+            removeFromLayout: true,
+          },
+          longtext: {
+            type: "textarea",
+            label: "longtext",
+            removeFromLayout: true,
+          },
+          datalist: {
+            type: "datalist",
+            label: "datalist",
+            options: ["pippo", "pluto"],
+            attributes: { id: "datalist" },
+            removeFromLayout: true,
+          },
+          color: {
+            type: "color",
+            label: "color",
+            removeFromLayout: true,
+          },
+          "datetime-local": {
+            type: "datetime-local",
+            label: "datetime-local",
+            removeFromLayout: true,
+          },
+          file: {
+            type: "file",
+            label: "file",
+            removeFromLayout: true,
+          },
+          hidden: {
+            type: "hidden",
+            label: "hidden",
+            removeFromLayout: true,
+          },
+          image: {
+            type: "image",
+            label: "image",
+            attributes: {
+              src: "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png",
+            },
+            removeFromLayout: true,
+          },
+          label: {
+            type: "label",
+            label: "label",
+            removeFromLayout: true,
+          },
+          month: {
+            type: "month",
+            label: "month",
+            removeFromLayout: true,
+          },
+          password: {
+            type: "password",
+            label: "password",
+            removeFromLayout: true,
+          },
+          range: {
+            type: "range",
+            label: "range",
+            removeFromLayout: true,
+          },
+          search: {
+            type: "search",
+            label: "search",
+            removeFromLayout: true,
+          },
+          time: {
+            type: "time",
+            label: "time",
+            removeFromLayout: true,
+          },
+          url: {
+            type: "url",
+            label: "url",
+            removeFromLayout: true,
+          },
+          week: {
+            type: "week",
+            label: "week",
+            removeFromLayout: true,
+          },
+        },
+        layout: [
+          ["full_name"],
+          ["credit_score_range"],
+          ["car_make_model"],
+          ["loan_amount"],
+          ["car_type"],
+          ["submit_button"],
+          ["number"],
+          ["longtext"],
+          ["datalist"],
+          ["color"],
+          ["datetime-local"],
+          ["file"],
+          ["hidden"],
+          ["image"],
+          ["label"],
+          ["month"],
+          ["password"],
+          ["range"],
+          ["search"],
+          ["time"],
+          ["url"],
+          ["week"],
+        ],
+        attributes: {
+          "accept-charset": "UTF-8",
+          action: "http://example.com/read-form-script",
+          autocomplete: "on",
+          enctype: "multipart/form-data",
+          method: "post",
+          novalidate: false,
+          target: "_self",
+        },
+      },
+      onChange: function (jsonFile, response) {
+        console.log('json', jsonFile);
+        console.log('response', response);
+      },
+      onSave: function (jsonFile, htmlFile) {
+        save('newsletter.html', htmlFile);
+      },
+      onSaveAsTemplate: function (jsonFile) {
+        save('newsletter-template.json', jsonFile);
+      },
+      onAutoSave: function (jsonFile) {
+        console.log(new Date().toISOString() + ' autosaving...');
+        window.localStorage.setItem('newsletter.autosave', jsonFile);
+      },
+      onSend: function (htmlFile) {
+        const email = document.getElementById('integrator-test-emails').value;
+        if (email) alert(`Would send test email to: ${email}`);
+        else alert("Please enter an email address");
+      },
+      onError: function (errorMessage) {
+        showStatus('Editor Error: ' + errorMessage, false);
+      },
+    }
+  };
+
+  var bee = null;
+
+  var loadTemplate = function (e) {
+    var templateFile = e.target.files[0];
+    var reader = new FileReader();
+
+    reader.onload = function () {
+      var templateString = reader.result;
+      var template = JSON.parse(templateString);
+      bee.load(template);
+    };
+
+    reader.readAsText(templateFile);
+  };
+
+  document.getElementById('choose-template').addEventListener('change', loadTemplate, false);
+
+  // Get Authentication Token
+  async function getBeeToken(callback) {
+    try {
+      const response = await fetch('http://localhost:3001/proxy/bee-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: 'test1-clientside' })
+      });
+      const token = await response.json();
+      callback(token);
+    } catch (err) {
+      showStatus('Authentication failed: ' + err.message, false);
+      console.error("Auth failed:", err);
+    }
+  }
+
+  // Initialize Beefree SDK
+  function initBee(token) {
+    showStatus('Initializing Beefree SDK...');
+    
+    BeePlugin.create(token, beeConfig, instance => {
+      bee = instance;
+      showStatus('Beefree SDK initialized successfully!');
+      
+      // Load template
+      fetch('./template.json')
+        .then((response) => response.json())
+        .then((template) => {
+          bee.start(template);
+        })
+        .catch((error) => {
+          console.error('Error loading template:', error);
+          bee.start({});
+        });
+    });
+  }
+
+  // Error handling for token refresh
+  beeConfig.onError = function(error) {
+    showStatus('Editor Error: ' + error.message, false);
+    console.error("Bee Error:", error);
+    
+    if (error.code === 5101 || error.code === 5102) {
+      getBeeToken(token => {
+        if (error.code === 5101) bee.updateToken(token);
+        else initBee(token);
+      });
+    }
+  };
+
+  // Start the editor
+  getBeeToken(initBee);
+</script>
+
+</html>

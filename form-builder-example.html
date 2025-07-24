@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Beefree SDK - Integration Example</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    #bee-plugin-container {
+      position: absolute;
+      top: 5px;
+      bottom: 30px;
+      left: 5px;
+      right: 5px;
+    }
+
+    #integrator-bottom-bar {
+      position: absolute;
+      height: 25px;
+      bottom: 0;
+      left: 5px;
+      right: 0;
+    }
+
+    /* Custom Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #d32f2f;
+    }
+
+    .modal button {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+
+    .modal button:hover {
+      background: #b71c1c;
+    }
+
+    .form-builder {
+      display: flex;
+      gap: 20px;
+    }
+
+    .form-preview {
+      flex: 1;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .field-list {
+      width: 200px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .field-list button {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .form-preview .form-field {
+      margin-bottom: 10px;
+    }
+
+    .form-preview .form-field label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .form-preview .form-field input {
+      width: 100%;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .save-button {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+  <div id="bee-plugin-container"></div>
+  <div id="integrator-bottom-bar">
+    Select template to load:
+    <input id="choose-template" type="file" />
+    Send test e-mail to:
+    <input id="integrator-test-emails" type="text" />
+  </div>
+
+  <!-- Custom Modal for Form Builder -->
+  <div id="form-modal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+      <h2>Form Builder</h2>
+      <div class="form-builder">
+        <div class="field-list">
+          <button onclick="addField('text')">Text</button>
+          <button onclick="addField('number')">Number</button>
+          <button onclick="addField('email')">Email</button>
+          <button onclick="addField('date')">Date</button>
+          <button onclick="addField('checkbox')">Checkbox</button>
+          <button onclick="addField('select')">Select</button>
+          <button onclick="addField('textarea')">Textarea</button>
+          <button onclick="addField('password')">Password</button>
+          <button onclick="addField('file')">File</button>
+          <button onclick="addField('submit')">Submit</button>
+        </div>
+        <div class="form-preview" id="form-preview">
+          <!-- Form fields will be added here -->
+        </div>
+      </div>
+      <button class="save-button" onclick="saveForm()">Save Form</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://app-rsrc.getbee.io/plugin/BeePlugin.js"></script>
+
+  <script type="text/javascript">
+    // Status message helper
+    function showStatus(message, isSuccess = true) {
+      console.log(isSuccess ? '[SUCCESS]' : '[ERROR]', message);
+    }
+
+    var save = function(filename, content) {
+      saveAs(
+        new Blob([content], { type: 'text/plain;charset=utf-8' }),
+        filename
+      );
+    };
+
+    var specialLinks = [{
+      type: 'unsubscribe',
+      label: 'SpecialLink.Unsubscribe',
+      link: 'http://[unsubscribe]/'
+    }, {
+      type: 'subscribe',
+      label: 'SpecialLink.Subscribe',
+      link: 'http://[subscribe]/'
+    }];
+
+    var mergeTags = [{
+      name: 'tag 1',
+      value: '[tag1]'
+    }, {
+      name: 'tag 2',
+      value: '[tag2]'
+    }];
+
+    var mergeContents = [{
+      name: 'content 1',
+      value: '[content1]'
+    }, {
+      name: 'content 2',
+      value: '[content1]'
+    }];
+
+    var formStructure = {
+      structure: {
+        title: 'Custom Form',
+        description: 'This is a custom form built by the user.',
+        fields: {},
+        layout: [],
+        attributes: {
+          'accept-charset': 'UTF-8',
+          action: 'http://example.com/read-form-script',
+          autocomplete: 'on',
+          enctype: 'multipart/form-data',
+          method: 'post',
+          novalidate: false,
+          target: '_self',
+        },
+      },
+    };
+
+    var beeConfig = {
+      container: 'bee-plugin-container',
+      language: 'en-US',
+      trackChanges: true,
+      specialLinks: specialLinks,
+      mergeTags: mergeTags,
+      mergeContents: mergeContents,
+      contentDialog: {
+        specialLinks: {
+          label: 'Add a custom Special Link',
+          handler: userInput('Enter the deep link:', {
+            type: 'custom',
+            label: 'external special link',
+            link: 'http://www.example.com'
+          })
+        },
+        mergeTags: {
+          label: 'Add custom tag 2',
+          handler: userInput('Enter the merge tag:', {
+            name: 'name',
+            value: '[name]'
+          })
+        },
+        mergeContents: {
+          label: 'Choose a custom merge content',
+          handler: userInput('Enter the merge content:', {
+            name: 'my custom content',
+            value: '{my-custom-content}'
+          })
+        },
+        rowDisplayConditions: {
+          label: 'Open builder',
+          handler: userInput('Enter the row display condition:', {
+            type: 'People',
+            label: 'Person is a developer',
+            description: 'Check if a person is a developer',
+            before: "{if job == 'developer'}",
+            after: '{endif}'
+          })
+        },
+        manageForm: {
+          label: 'Edit Form',
+          handler: async (resolve, reject, args) => {
+            openModal();
+            await new Promise((res) => {
+              window.saveForm = () => {
+                resolve(formStructure);
+                closeModal();
+              };
+            });
+          }
+        }
+      },
+      defaultForm: formStructure,
+      onChange: function(jsonFile, response) {
+        console.log('json', jsonFile);
+        console.log('response', response);
+      },
+      onSave: function(jsonFile, htmlFile) {
+        save('newsletter.html', htmlFile);
+      },
+      onSaveAsTemplate: function(jsonFile) {
+        save('newsletter-template.json', jsonFile);
+      },
+      onAutoSave: function(jsonFile) {
+        console.log(new Date().toISOString() + ' autosaving...');
+        window.localStorage.setItem('newsletter.autosave', jsonFile);
+      },
+      onSend: function(htmlFile) {
+        const email = document.getElementById('integrator-test-emails').value;
+        if (email) alert(`Would send test email to: ${email}`);
+        else alert("Please enter an email address");
+      },
+      onError: function(error) {
+        console.error("Bee Error:", error);
+        if (error.code === 5101 || error.code === 5102) {
+          getBeeToken(token => {
+            if (error.code === 5101) bee.updateToken(token);
+            else initBee(token);
+          });
+        }
+      }
+    };
+
+    var bee = null;
+
+    function userInput(message, sample) {
+      return function handler(resolve, reject) {
+        var data = prompt(message, JSON.stringify(sample));
+        return (data == null || data == '') ? reject() : resolve(JSON.parse(data));
+      };
+    }
+
+    // Get Authentication Token
+    async function getBeeToken(callback) {
+      try {
+        const response = await fetch('http://localhost:3001/proxy/bee-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: 'test1-clientside' })
+        });
+        const token = await response.json();
+        callback(token);
+      } catch (err) {
+        console.error("Auth failed:", err);
+        showStatus('Authentication failed: ' + err.message, false);
+      }
+    }
+
+    // Initialize Beefree SDK
+    function initBee(token) {
+      showStatus('Initializing Beefree SDK...');
+      
+      BeePlugin.create(token, beeConfig, instance => {
+        bee = instance;
+        showStatus('Beefree SDK initialized successfully!');
+        
+        // Load template
+        fetch('./template.json')
+          .then(response => response.json())
+          .then(template => bee.start(template))
+          .catch(error => {
+            console.error('Error loading template:', error);
+            bee.start({});
+          });
+      });
+    }
+
+    var loadTemplate = function(e) {
+      var templateFile = e.target.files[0];
+      var reader = new FileReader();
+
+      reader.onload = function() {
+        var templateString = reader.result;
+        var template = JSON.parse(templateString);
+        bee.load(template);
+      };
+
+      reader.readAsText(templateFile);
+    };
+
+    document.getElementById('choose-template').addEventListener('change', loadTemplate, false);
+
+    // Modal Functions
+    function openModal() {
+      document.getElementById('form-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('form-modal').style.display = 'none';
+    }
+
+    function addField(type) {
+      const fieldId = `field-${Date.now()}`;
+      const fieldLabel = prompt(`Enter label for ${type} field:`, `${type} Field`);
+
+      if (fieldLabel) {
+        const field = {
+          type: type,
+          label: fieldLabel,
+          canBeRemovedFromLayout: true,
+          removeFromLayout: false,
+          attributes: {
+            required: true,
+          },
+        };
+
+        if (type === 'select') {
+          field.options = [
+            { type: 'option', label: 'Option 1', value: 'option1' },
+            { type: 'option', label: 'Option 2', value: 'option2' },
+          ];
+        }
+
+        formStructure.structure.fields[fieldId] = field;
+        formStructure.structure.layout.push([fieldId]);
+
+        const formPreview = document.getElementById('form-preview');
+        const fieldElement = document.createElement('div');
+        fieldElement.className = 'form-field';
+        fieldElement.innerHTML = `
+          <label>${fieldLabel}</label>
+          <input type="${type}" placeholder="${fieldLabel}" />
+        `;
+        formPreview.appendChild(fieldElement);
+      }
+    }
+
+    // Start the editor
+    getBeeToken(initBee);
+  </script>
+</body>
+</html>
