@@ -1,6 +1,6 @@
 # Form Block: Beefree SDK Multi-Form & Builder Integration
 
-This project demonstrates advanced integration patterns with the Beefree SDK, including:
+This project demonstrates advanced [form block integration options](https://docs.beefree.io/beefree-sdk/forms/form-block) with the Beefree SDK, including:
 - Multiple pre-defined forms (Auto Loan, Mortgage, Credit Card)
 - A custom form builder
 - Secure authentication using a Node.js proxy and Beefree SDK's `loginV2`
